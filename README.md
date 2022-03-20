@@ -37,3 +37,17 @@ Use command:
 python youtube_subscription_transfer.py import <filename>.json
 ```
 to import subscription list from a json file in the json directory into a youtube account
+
+### fixed
+#### export csv data 
+    do as the above instructions, and export subscriptions using google data take over ['https://takeout.google.com/settings/takeout'](Google data take over), and export the other google account's subscriptions into csv format its only the format google supports current now. 
+    save your subscriptions json into ./json/subscriptions.csv'
+#### convert csv data to json
+    ```shell
+    python3 youtube_subscription_transfer.py json
+    ```
+    after success, it will create a json file name 'sub.json'
+#### import your subscription go google
+    ```shell
+    python3 youtube_subscription_transfer.py import sub.json
+    ``` 

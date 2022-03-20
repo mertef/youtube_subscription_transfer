@@ -10,13 +10,13 @@ from distutils.util import strtobool
 
 def get_arguments():
     parser = argparse.ArgumentParser(prog="Youtube subscription transfer", description="This program supports subscription exportation and importation from any youtube account")
-    parser.add_argument("command", nargs=1, type=command_type, help="use commands:\nexport\nimport")
-    parser.add_argument("filename", nargs=1, type=str, help="Subsription json filename to export or import")
+    parser.add_argument("command", nargs=1, type=command_type, help="use commands:\nexport\nimport\json")
+    parser.add_argument("filename", nargs='*', type=str, help="Subsription json filename to export or import")
     args = parser.parse_args()
     return args
 
 def command_type(string):
-    if not (string=="export" or string=="import"):
+    if not (string=="export" or string=="import" or string=="json"):
         raise argparse.ArgumentTypeError("Invalid command")
     return string
 
@@ -58,6 +58,8 @@ def export_subscriptions(youtube):
         pageToken = response['nextPageToken']
 
     print("total subscriptions retrived: {}".format(response['pageInfo']['totalResults']))
+    for e in subscriptions:
+        print(e)
     return subscriptions
 
 def retrive_page_data(items):
@@ -78,18 +80,22 @@ def remove_matching_subscriptions(source_subscriptions, target_subscriptions):
 
 def import_subscriptions(youtube, subscriptions):
     for subscription in subscriptions:
-        request = youtube.subscriptions().insert(
-                part="snippet",
-                body={
-                  "snippet": {
-                    "resourceId": {
-                      "kind": "youtube#channel",
-                      "channelId": subscription['ID']
+        try: 
+            print('id {0} ===> title {1}'.format(subscription['ID'], subscription['title']))
+            request = youtube.subscriptions().insert(
+                    part="snippet",
+                    body={
+                    "snippet": {
+                        "resourceId": {
+                        "kind": "youtube#channel",
+                        "channelId": subscription['ID']
+                        }
                     }
-                  }
-                }
-            )
-        response = request.execute()
+                    }
+                )
+            response = request.execute()
+        except:
+            print('exception occurs ')
         print("successfully subscribed to {0:>50}".format(subscription['title']))
     print("subscription importing complete")
 
@@ -102,14 +108,27 @@ def read_json(filename):
     except (IOError, FileNotFoundError) as e:
         print("file {} does not exist in json directory".format(filename))
         
-def save_json(subscriptions):
-    save_path = "./json/"+args.filename[0]
+def save_json(subscriptions, args):
+    filename = args.filename[0]
+    print('save file name is {0}'.format(filename))
+    save_path = "./json/"+ filename
     with open(save_path, "w") as f:
         json.dump(subscriptions, f)
         print("saved subscriptions as {} in json directory".format(filename))
 
-        
+    pass
 
+# authenticated user's account.
+SCOPES = ['https://www.googleapis.com/auth/youtube']
+API_SERVICE_NAME = 'youtube'
+API_VERSION = 'v3'        
+CLIENT_SECRETS_FILE = './client_secrets_file/client_id.json'
+
+def get_authenticated_service():
+      flow = InstalledAppFlow.from_client_secrets_file(CLIENT_SECRETS_FILE, SCOPES)
+      credentials = flow.run_console()
+      return build(API_SERVICE_NAME, API_VERSION, credentials = credentials)
+   
 def main():
     # Disable OAuthlib's HTTPS verification when running locally.
     # *DO NOT* leave this option enabled in production.
@@ -120,13 +139,14 @@ def main():
     if args.command[0]=="export":
         # authorize source account
         print("authorize the Youtube account you wish to transfer subscriptions from")
+        #youtube = get_authenticated_service()
         youtube = create_API_client(scopes=["https://www.googleapis.com/auth/youtube.readonly"],
                                    api_service_name="youtube",
                                    api_version="v3",
                                    client_secrets_file="./client_secrets_file/client_id.json")
         # retrive source subscriptions
         source_subscriptions = export_subscriptions(youtube) 
-        save_json(source_subscriptions)
+        save_json(source_subscriptions, args)
     elif args.command[0]=="import":
         source_subscriptions = read_json(args.filename[0])
         # authorize target account
@@ -139,8 +159,33 @@ def main():
         target_subscriptions = export_subscriptions(youtube)
         subscriptions = remove_matching_subscriptions(source_subscriptions, target_subscriptions)
         import_subscriptions(youtube, subscriptions)
+    elif args.command[0] == "json":
+        print('convert google dataout csv file to json format')
+        csvToJson('./json/subscriptions.csv', './json/sub.json')
     else:
         sys.exit("exiting program")
 
+
+
+
+def csvToJson(csv_in_file, csv_out_file):
+    data = []
+    with open(csv_in_file) as csv_in_file:
+        csv_reader = csv.DictReader(csv_in_file)
+        print('rows count is {0}'.format(csv_reader))
+        for row in csv_reader:
+            print('id = {0} title is {1}'.format(row['Channel Id'], row['Channel Title']))
+            row_data = {}
+            row_data['ID'] = row['Channel Id']
+            row_data['title'] = row['Channel Title']
+            data.append(row_data)
+
+    with open(csv_out_file, 'w+') as csv_in_file:
+         csv_in_file.write(json.dumps(data, indent=4))
+
+
+    pass
+
 if __name__ == "__main__":
     main()
+    #csvToJson('./json/subscriptions.csv', './json/sub.json')
